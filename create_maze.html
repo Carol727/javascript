@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Create Maze</title>
+</head>
+<body>
+    <div>
+        <input type="button" value="clear trace" id="clr" size="23" onclick="erase()" style="position:absolute;top:85%;left:10%;">
+        <input type="button" value="create ends" id="createends" size="23" onclick="drawEnds()" style="position:absolute;top:85%;left:20%;">
+    </div>
+    <div>
+        <canvas id="myCanvas" width="600" height="600" style="position: absolute; left: 500; top: 500; z-index: 1;">
+        This text is displayed if your browser does not support HTML5 Canvas.
+        </canvas>
+        <canvas id="endsCanvas" width="600" height="600" style="position: absolute; left: 500; top: 500; z-index: 0;">
+        This text is displayed if your browser does not support HTML5 Canvas.
+        </canvas>
+        <canvas id="traceCanvas" width="600" height="600" style="position: absolute; left: 500; top: 500; z-index: 2;">
+        This text is displayed if your browser does not support HTML5 Canvas.
+        </canvas>
+    </div>
+
+
+    <script type="text/javascript">
+        <!--var canvas = document.getElementById("myCanvas");-->
+        <!--var ctx = canvas.getContext("2d");-->
+        <!--ctx.font = "30px Arial";-->
+        <!--ctx.strokeText("Hello World", 10, 50);-->
+        var canvas, ctx, flag = false,
+            prevX = 0,
+            currX = 0,
+            prevY = 0,
+            currY = 0,
+            dot_flag = false;
+        var x = "blue",
+            y = 2;
+        init();
+        function init() {
+            canvas = document.getElementById('traceCanvas');
+            ctx = canvas.getContext("2d");
+            w = canvas.width;
+            h = canvas.height;
+
+            canvas.addEventListener("mousemove", function (e) {
+                findxy('move', e)
+            }, false);
+            canvas.addEventListener("mousedown", function (e) {
+                findxy('down', e)
+            }, false);
+            canvas.addEventListener("mouseup", function (e) {
+                findxy('up', e)
+            }, false);
+            canvas.addEventListener("mouseout", function (e) {
+                findxy('out', e)
+            }, false);
+        }
+        function draw() {
+            ctx.beginPath();
+            ctx.moveTo(prevX, prevY);
+            ctx.lineTo(currX, currY);
+            ctx.strokeStyle = x;
+            ctx.lineWidth = y;
+            ctx.stroke();
+            ctx.closePath();
+        }
+        function erase() {
+            ctx.clearRect(0, 0, w, h);
+        }
+        function findxy(res, e) {
+            if (res == 'down') {
+                prevX = currX;
+                prevY = currY;
+                currX = e.clientX - canvas.offsetLeft;
+                currY = e.clientY - canvas.offsetTop;
+
+                flag = true;
+                dot_flag = true;
+                if (dot_flag) {
+                    ctx.beginPath();
+                    ctx.fillStyle = x;
+                    ctx.fillRect(currX, currY, 2, 2);
+                    ctx.closePath();
+                    dot_flag = false;
+                }
+            }
+            if (res == 'up' || res == "out") {
+                flag = false;
+            }
+            if (res == 'move') {
+                if (flag) {
+                    prevX = currX;
+                    prevY = currY;
+                    currX = e.clientX - canvas.offsetLeft;
+                    currY = e.clientY - canvas.offsetTop;
+                    draw();
+                }
+            }
+        }
+        class Cell{
+            constructor(x, y){
+                this._x = x;
+                this._y = y;
+                this._walls = {'N': true, 'S': true, 'E': true, 'W': true};
+            }
+            get x(){
+                return this._x;
+            }
+            get y(){
+                return this._y;
+            }
+            get walls(){
+                return this._walls;
+            }
+            getWallPoints(direction){
+                if (direction == 'N'){
+                    return [this._x, this._y, this._x+1, this._y];
+                } else if (direction == 'S'){
+                    return [this._x, this._y+1, this._x+1, this._y+1];
+                } else if (direction == 'E'){
+                    return [this._x+1, this._y, this._x+1, this._y+1];
+                } else if (direction == 'W'){
+                    return [this._x, this._y, this._x, this._y+1];
+                } else {
+                    throw 'Direction not supported';
+                }
+            }
+            getPairedWall(d){
+                var all_pairs = {'N': 'S', 'S': 'N', 'E': 'W', 'W': 'E'};
+                return all_pairs[d];
+            }
+            hasAllWalls(){
+                for (var d in this._walls){
+                    if (!this._walls[d]){
+                        return false;
+                    }
+                }
+                return true;
+            }
+            breakWall(neighbor, wall){
+                this._walls[wall] = false;
+                neighbor.walls[this.getPairedWall(wall)] = false;
+                <!--console.log('break wall this: ', this.x, this.y, wall);-->
+                <!--console.log('break wall next: ', neighbor.x, neighbor.y, this.getPairedWall(wall));-->
+            }
+        }
+        class Maze{
+            constructor(nx, ny){
+                this._nx = nx;
+                this._ny = ny;
+                this._ix = 0;
+                this._iy = 0;
+                this._ends = [];
+                var all_cell = [];
+                for (var i = 0; i < nx; i++){
+                    all_cell[i] = [];
+                    for (var j = 0; j < ny; j++){
+                        all_cell[i][j] = new Cell(i, j);
+                    }
+                }
+                this._all_cell = all_cell;
+                <!--this.createMaze();-->
+            }
+            get nx(){
+                return this._nx;
+            }
+            get ny(){
+                return this._ny;
+            }
+            get all_cell(){
+                return this._all_cell;
+            }
+            get ends(){
+                return this._ends;
+            }
+            getCellAt(x, y){
+                <!--console.log('get cell at: ', x, y);-->
+                return this.all_cell[x][y];
+            }
+            findNeighbors(cell){
+                var neighbor_delta = {'W':[-1,0],'E':[1,0],'S':[0,1],'N':[0,-1]};
+                var neighbors = {}
+                for (var direction in neighbor_delta){
+                    var dx;
+                    var dy;
+                    [dx, dy] = neighbor_delta[direction];
+                    var x2 = cell.x + dx;
+                    var y2 = cell.y + dy;
+                    if ((0 <= x2)&&(0 <= y2)&&(x2 < this._nx)&&(y2 < this._ny)){
+                        var neighbor = this.getCellAt(x2, y2);
+                        if (neighbor.hasAllWalls()){
+                            neighbors[direction] = neighbor;
+                        }
+                    }
+                }
+                <!--console.log('neighbors count: ', Object.keys(neighbors).length);-->
+                return neighbors;
+            }
+            createMaze(){
+                var n = this._nx * this._ny;
+                var cell_stack = [];
+                <!--console.log(this.all_cell[0][0].x,this.all_cell[0][0].y);-->
+                var current_cell = this.getCellAt(this._ix, this._iy);
+                var visit_count = 1;
+                while (visit_count < n){
+                    <!--console.log('while: ', current_cell.x, current_cell.y);-->
+                    var neighbors = this.findNeighbors(current_cell);
+                    if (Object.keys(neighbors).length === 0){
+                        current_cell = cell_stack.pop();
+                        continue;
+                    }
+
+                    var keys = Object.keys(neighbors);
+                    var random_direction = keys[keys.length * Math.random() << 0];
+                    var next_cell = neighbors[random_direction];
+                    current_cell.breakWall(next_cell, random_direction);
+                    cell_stack.push(current_cell);
+                    current_cell = next_cell;
+                    visit_count++;
+                }
+            }
+            createEnds(){
+                this._ends = [];
+                var s_x = Math.floor(Math.random()*this._nx);
+                var s_y = Math.floor(Math.random()*this._ny);
+                var e_x = Math.floor(Math.random()*this._nx);
+                var e_y = Math.floor(Math.random()*this._ny);
+                this._ends.push([s_x, s_y]);
+                this._ends.push([e_x, e_y]);
+            }
+        }
+
+        function drawMaze(size, stride) {
+            var canvas3 = document.getElementById("myCanvas");
+            var ctx3 = canvas3.getContext("2d");
+            let maze = new Maze(size,size);
+            maze.createMaze();
+            for (var i = 0; i < size; i++){
+                for (var j = 0; j < size; j++){
+                    cell = maze.all_cell[i][j];
+                    for (var direction in cell.walls){
+                        if (cell.walls[direction]){
+                            [start_x, start_y, end_x, end_y] = cell.getWallPoints(direction)
+                            ctx3.moveTo(start_x*stride,start_y*stride);
+                            ctx3.lineTo(end_x*stride, end_y*stride);
+                            ctx3.stroke();
+                        <!--console.log(cell.x*stride, cell.y*stride, cell.x*stride+stride, cell.y*stride)-->
+                        }
+                    }
+                }
+            }
+            return maze;
+        }
+        stride = 30;
+        maze = drawMaze(20, stride);
+        drawEnds();
+        function drawEnds(){
+            canvas2 = document.getElementById('endsCanvas');
+            ctx2 = canvas2.getContext("2d");
+
+            ctx2.clearRect(0, 0, w, h);
+            <!--document.getElementById("canvasimg").style.display = "none";-->
+
+            maze.createEnds();
+            [enter_x, enter_y] = maze.ends[0];
+            var r = Math.floor(stride/4);
+            var rx = enter_x*stride + Math.floor(stride/2);
+            var ry = enter_y*stride + Math.floor(stride/2);
+            ctx2.beginPath();
+            ctx2.arc(rx, ry, r, 0, 2*Math.PI);
+            ctx2.stroke();
+
+            [enter_x, enter_y] = maze.ends[1];
+            var r = Math.floor(stride/4);
+            var rx = enter_x*stride + Math.floor(stride/2);
+            var ry = enter_y*stride + Math.floor(stride/2);
+            ctx2.beginPath();
+            ctx2.arc(rx, ry, r, 0, 2*Math.PI);
+            ctx2.fill();
+        }
+
+    </script>
+</body>
+</html>
